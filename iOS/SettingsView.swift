@@ -36,6 +36,16 @@ struct SettingsView: View {
                     Text("This happens automatically. Use it if your Watch looks out of date.")
                 }
 
+                Section {
+                    Button {
+                        Beep.shared.play()
+                    } label: {
+                        Label("Test rest beep", systemImage: "speaker.wave.2")
+                    }
+                } footer: {
+                    Text("The beep uses your media volume, the same as music and videos, not the ringer volume. It still plays with the silent switch on.")
+                }
+
                 if model.strongWorkoutCount > 0 {
                     Section {
                         Button("Delete imported Strong history", role: .destructive) {
