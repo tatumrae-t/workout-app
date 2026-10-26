@@ -57,6 +57,9 @@ final class ActiveWorkout: ObservableObject, Identifiable {
     @Published private(set) var restEndsAt: Date?
     @Published private(set) var restDuration = 0
     @Published private(set) var note: String?
+    @Published private(set) var pausedAt: Date?
+    /// Time spent in earlier pauses; the current one is added on resume.
+    @Published private(set) var pausedTime: TimeInterval = 0
 
     /// The values shown in the set logger, prefilled from the suggestion.
     @Published var weight: Double = 0
@@ -71,6 +74,8 @@ final class ActiveWorkout: ObservableObject, Identifiable {
 
     private var stepSet: [Int: UUID] = [:]
     private var restTask: Task<Void, Never>?
+    /// Rest that was left when you paused, picked back up on resume.
+    private var pausedRest: TimeInterval?
 
     init(day: PlanDay, lastSets: [String: [LoggedSet]], startDate: Date = Date()) {
         self.day = day
@@ -86,6 +91,15 @@ final class ActiveWorkout: ObservableObject, Identifiable {
     var loggedSetCount: Int { logged.values.reduce(0) { $0 + $1.count } }
     var progress: Double { steps.isEmpty ? 1 : Double(index) / Double(steps.count) }
     var isResting: Bool { restEndsAt != nil }
+    var isPaused: Bool { pausedAt != nil }
+
+    /// Workout time so far, not counting pauses.
+    func elapsed(at date: Date = Date()) -> TimeInterval {
+        (pausedAt ?? date).timeIntervalSince(startDate) - pausedTime
+    }
+
+    /// When the workout would have started with no pauses, for running clocks.
+    var clockStart: Date { startDate.addingTimeInterval(pausedTime) }
 
     func lastTime(for exercise: PlanExercise) -> [LoggedSet]? {
         lastSets[exercise.name]
@@ -219,6 +233,27 @@ final class ActiveWorkout: ObservableObject, Identifiable {
         }
     }
 
+    // MARK: Pausing
+
+    func pause() {
+        guard pausedAt == nil else { return }
+        pausedAt = Date()
+        if let end = restEndsAt {
+            pausedRest = max(0, end.timeIntervalSinceNow)
+        }
+        stopRest()
+    }
+
+    func resume() {
+        guard let pausedAt else { return }
+        pausedTime += Date().timeIntervalSince(pausedAt)
+        self.pausedAt = nil
+        if let rest = pausedRest, rest >= 1 {
+            scheduleRestEnd(at: Date().addingTimeInterval(rest))
+        }
+        pausedRest = nil
+    }
+
     // MARK: Finishing
 
     func makeWorkout(source: WorkoutSource, endDate: Date = Date()) -> Workout {
@@ -232,7 +267,8 @@ final class ActiveWorkout: ObservableObject, Identifiable {
             startDate: startDate,
             endDate: endDate,
             source: source,
-            exercises: exercises
+            exercises: exercises,
+            pausedTime: pausedTime + (pausedAt.map { endDate.timeIntervalSince($0) } ?? 0)
         )
     }
 }

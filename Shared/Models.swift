@@ -36,8 +36,10 @@ struct Workout: Codable, Hashable, Identifiable {
     var endDate: Date
     var source: WorkoutSource
     var exercises: [LoggedExercise]
+    /// Time spent paused, left out of the duration. Nil for older workouts.
+    var pausedTime: TimeInterval? = nil
 
-    var duration: TimeInterval { endDate.timeIntervalSince(startDate) }
+    var duration: TimeInterval { endDate.timeIntervalSince(startDate) - (pausedTime ?? 0) }
     var setCount: Int { exercises.reduce(0) { $0 + $1.sets.count } }
 }
 

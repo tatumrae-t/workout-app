@@ -50,6 +50,15 @@ final class HealthWorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    /// Pausing stops Health from counting time and calories until you resume.
+    func pause() {
+        session?.pause()
+    }
+
+    func resume() {
+        session?.resume()
+    }
+
     func finish() async {
         guard let session, let builder else { return }
         session.end()

@@ -9,7 +9,9 @@ struct ActiveWorkoutView: View {
         NavigationStack {
             List {
                 Section {
-                    if workout.isResting {
+                    if workout.isPaused {
+                        pausedCard
+                    } else if workout.isResting {
                         RestCard(workout: workout)
                     } else if workout.isFinished {
                         finishedCard
@@ -34,6 +36,13 @@ struct ActiveWorkoutView: View {
                     Button("Finish") { model.finishActive() }
                         .bold()
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        workout.isPaused ? workout.resume() : workout.pause()
+                    } label: {
+                        Label(workout.isPaused ? "Resume" : "Pause", systemImage: workout.isPaused ? "play.fill" : "pause.fill")
+                    }
+                }
             }
             .confirmationDialog("Discard this workout?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
                 Button("Discard workout", role: .destructive) { model.discardActive() }
@@ -43,13 +52,29 @@ struct ActiveWorkoutView: View {
         }
     }
 
+    private var pausedCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(.yellow)
+            Text("Paused").font(.title3.bold())
+            Text("\(Format.duration(workout.elapsed())) so far · \(workout.loggedSetCount) sets")
+                .foregroundStyle(.secondary)
+            Button("Resume") { workout.resume() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical)
+    }
+
     private var finishedCard: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(.green)
             Text("All sets done").font(.title3.bold())
-            Text("\(workout.loggedSetCount) sets in \(Format.duration(Date().timeIntervalSince(workout.startDate)))")
+            Text("\(workout.loggedSetCount) sets in \(Format.duration(workout.elapsed()))")
                 .foregroundStyle(.secondary)
             Button("Finish workout") { model.finishActive() }
                 .buttonStyle(.borderedProminent)

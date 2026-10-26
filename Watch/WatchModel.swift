@@ -48,6 +48,18 @@ final class WatchModel: ObservableObject {
         WKInterfaceDevice.current().play(.success)
     }
 
+    func togglePause() {
+        guard let workout = active else { return }
+        if workout.isPaused {
+            workout.resume()
+            health.resume()
+        } else {
+            workout.pause()
+            health.pause()
+        }
+        WKInterfaceDevice.current().play(workout.isPaused ? .stop : .start)
+    }
+
     func discard() {
         active?.stopRest()
         health.discard()

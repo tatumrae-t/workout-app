@@ -12,7 +12,9 @@ struct SessionView: View {
             ControlsView(workout: workout)
                 .tag(0)
             Group {
-                if workout.isResting {
+                if workout.isPaused {
+                    PausedView(workout: workout)
+                } else if workout.isResting {
                     RestView(workout: workout)
                 } else if workout.isFinished {
                     FinishView(workout: workout)
@@ -21,10 +23,13 @@ struct SessionView: View {
                 }
             }
             .tag(1)
-            MetricsView(health: model.health, startDate: workout.startDate, workout: workout)
+            MetricsView(health: model.health, workout: workout)
                 .tag(2)
         }
         .tabViewStyle(.page)
+        .onChange(of: workout.isPaused) { _, _ in
+            page = 1
+        }
         .navigationBarBackButtonHidden()
     }
 }
@@ -192,6 +197,14 @@ struct ControlsView: View {
         ScrollView {
             VStack(spacing: 8) {
                 Button {
+                    model.togglePause()
+                } label: {
+                    Label(workout.isPaused ? "Resume" : "Pause", systemImage: workout.isPaused ? "play.fill" : "pause.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .tint(.yellow)
+
+                Button {
                     Task { await model.finish() }
                 } label: {
                     Label("Finish", systemImage: "checkmark")
@@ -239,14 +252,19 @@ struct ControlsView: View {
 
 struct MetricsView: View {
     @ObservedObject var health: HealthWorkoutManager
-    let startDate: Date
     @ObservedObject var workout: ActiveWorkout
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(timerInterval: startDate...Date.distantFuture, countsDown: false)
-                .font(.title2.monospacedDigit().bold())
-                .foregroundStyle(.yellow)
+            Group {
+                if workout.isPaused {
+                    Text(Format.clock(Int(workout.elapsed())))
+                } else {
+                    Text(timerInterval: workout.clockStart...Date.distantFuture, countsDown: false)
+                }
+            }
+            .font(.title2.monospacedDigit().bold())
+            .foregroundStyle(.yellow)
             Label(health.heartRate > 0 ? "\(Int(health.heartRate)) BPM" : "-- BPM", systemImage: "heart.fill")
                 .foregroundStyle(.red)
             Label("\(Int(health.activeCalories)) cal", systemImage: "flame.fill")
@@ -302,6 +320,26 @@ struct EffortButton: View {
                     .foregroundStyle(.secondary)
                     .listRowBackground(Color.clear)
             }
+        }
+    }
+}
+
+struct PausedView: View {
+    @EnvironmentObject private var model: WatchModel
+    @ObservedObject var workout: ActiveWorkout
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Paused").font(.headline)
+            Text(Format.clock(Int(workout.elapsed())))
+                .font(.title2.monospacedDigit().bold())
+                .foregroundStyle(.yellow)
+            Button {
+                model.togglePause()
+            } label: {
+                Label("Resume", systemImage: "play.fill").frame(maxWidth: .infinity)
+            }
+            .tint(.green)
         }
     }
 }
