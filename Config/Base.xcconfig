@@ -1,0 +1,3 @@
+// Shared build settings. Your Apple team ID goes in Local.xcconfig (not
+// committed), which ./setup.sh creates for you when it can find it.
+#include? "Local.xcconfig"
