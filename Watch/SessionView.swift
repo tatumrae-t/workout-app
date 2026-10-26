@@ -63,6 +63,8 @@ struct SetLoggerView: View {
                     .buttonStyle(.bordered)
                     Text("reps").font(.caption2).foregroundStyle(.secondary)
 
+                    EffortButton(rpe: $workout.rpe)
+
                     Button {
                         workout.logSet()
                         WKInterfaceDevice.current().play(.click)
@@ -257,5 +259,49 @@ struct MetricsView: View {
         .font(.body.monospacedDigit())
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+    }
+}
+
+/// Opens a list of RPE levels with what each one means.
+struct EffortButton: View {
+    @Binding var rpe: Double?
+    @State private var choosing = false
+
+    var body: some View {
+        Button {
+            choosing = true
+        } label: {
+            Text(rpe.map { "RPE \(Effort.text($0))" } ?? "Effort (RPE)")
+                .frame(maxWidth: .infinity)
+        }
+        .sheet(isPresented: $choosing) {
+            List {
+                ForEach(Effort.levels) { level in
+                    Button {
+                        rpe = level.rpe
+                        choosing = false
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(Effort.text(level.rpe)) · \(level.title)")
+                                .font(.headline)
+                                .foregroundStyle(rpe == level.rpe ? Color.green : Color.primary)
+                            Text(level.detail)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if rpe != nil {
+                    Button("Clear", role: .destructive) {
+                        rpe = nil
+                        choosing = false
+                    }
+                }
+                Text(Effort.target)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .listRowBackground(Color.clear)
+            }
+        }
     }
 }

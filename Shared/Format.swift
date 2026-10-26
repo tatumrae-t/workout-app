@@ -6,7 +6,9 @@ enum Format {
     }
 
     static func set(_ set: LoggedSet) -> String {
-        set.weight == 0 ? "\(set.reps) reps" : "\(weight(set.weight)) lb × \(set.reps)"
+        let text = set.weight == 0 ? "\(set.reps) reps" : "\(weight(set.weight)) lb × \(set.reps)"
+        guard let rpe = set.rpe else { return text }
+        return "\(text) @\(Effort.text(rpe))"
     }
 
     static func sets(_ sets: [LoggedSet]) -> String {

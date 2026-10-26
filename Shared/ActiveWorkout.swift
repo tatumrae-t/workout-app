@@ -61,8 +61,10 @@ final class ActiveWorkout: ObservableObject, Identifiable {
     /// The values shown in the set logger, prefilled from the suggestion.
     @Published var weight: Double = 0
     @Published var reps: Int = 0
+    /// Effort for the set being logged; optional, so it starts blank each set.
+    @Published var rpe: Double?
 
-    /// Called when a rest timer runs out (for a haptic).
+    /// Called when a rest timer runs out (for a beep and a haptic).
     var onRestFinished: (() -> Void)?
     /// Called with the new end time whenever rest starts, changes or stops.
     var onRestChanged: ((Date?) -> Void)?
@@ -97,7 +99,7 @@ final class ActiveWorkout: ObservableObject, Identifiable {
 
     func logSet() {
         guard let step = currentStep else { return }
-        let set = LoggedSet(weight: weight, reps: reps)
+        let set = LoggedSet(weight: weight, reps: reps, rpe: rpe)
         logged[step.exerciseID, default: []].append(set)
         stepSet[step.id] = set.id
         index += 1
@@ -148,6 +150,7 @@ final class ActiveWorkout: ObservableObject, Identifiable {
             loadSuggestion()
             weight = removed.weight
             reps = removed.reps
+            rpe = removed.rpe
         } else {
             loadSuggestion()
         }
@@ -162,6 +165,7 @@ final class ActiveWorkout: ObservableObject, Identifiable {
     }
 
     private func loadSuggestion() {
+        rpe = nil
         guard let exercise = currentExercise else {
             note = nil
             return
@@ -208,7 +212,10 @@ final class ActiveWorkout: ObservableObject, Identifiable {
             guard !Task.isCancelled, let self else { return }
             self.restEndsAt = nil
             self.restTask = nil
-            self.onRestFinished?()
+            // If the app was suspended past the end, it's too late to alert.
+            if Date().timeIntervalSince(end) < 3 {
+                self.onRestFinished?()
+            }
         }
     }
 

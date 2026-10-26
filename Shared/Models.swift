@@ -6,6 +6,9 @@ struct LoggedSet: Codable, Hashable, Identifiable {
     var weight: Double
     var reps: Int
     var completedAt = Date()
+    /// How hard the set felt, 5–10 (see `Effort`). Nil when not recorded,
+    /// which also keeps older saved sets decoding.
+    var rpe: Double? = nil
 }
 
 struct LoggedExercise: Codable, Hashable, Identifiable {

@@ -36,6 +36,7 @@ enum StrongImport {
         let poundsColumn = column("Weight", "Weight (lbs)", "Weight (lb)")
         let kilogramsColumn = column("Weight (kg)")
         let unitColumn = column("Weight Unit")
+        let rpeColumn = column("RPE")
 
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
@@ -81,7 +82,8 @@ enum StrongImport {
                     }
                 }
 
-                let set = LoggedSet(weight: (weight * 10).rounded() / 10, reps: reps, completedAt: start)
+                let rpe = Double(field(row, rpeColumn)).flatMap { $0 > 0 ? $0 : nil }
+                let set = LoggedSet(weight: (weight * 10).rounded() / 10, reps: reps, completedAt: start, rpe: rpe)
                 if let index = exercises.firstIndex(where: { $0.name == name }) {
                     exercises[index].sets.append(set)
                 } else {

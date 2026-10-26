@@ -114,6 +114,8 @@ struct SetLoggerCard: View {
                         .font(.title3.monospacedDigit())
                 }
 
+                EffortPicker(rpe: $workout.rpe)
+
                 Button {
                     workout.logSet()
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -178,5 +180,83 @@ struct RestCard: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical)
         }
+    }
+}
+
+/// Optional RPE for the set: tap a number, tap it again to clear.
+struct EffortPicker: View {
+    @Binding var rpe: Double?
+    @State private var showingGuide = false
+
+    private let choices: [Double] = [6, 7, 8, 9, 10]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Effort (RPE)").font(.subheadline)
+                Button {
+                    showingGuide = true
+                } label: {
+                    Image(systemName: "info.circle")
+                }
+                .buttonStyle(.borderless)
+                Spacer()
+            }
+            HStack(spacing: 8) {
+                ForEach(choices, id: \.self) { choice in
+                    let selected = rpe == choice
+                    Button {
+                        rpe = selected ? nil : choice
+                    } label: {
+                        Text(Effort.text(choice))
+                            .font(.body.monospacedDigit().bold())
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(selected ? Color.accentColor : Color.secondary)
+                }
+            }
+            Text(rpe.flatMap(Effort.level(for:)).map { "\($0.title). \($0.detail)" } ?? "Optional. \(Effort.target)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .sheet(isPresented: $showingGuide) {
+            EffortGuide()
+        }
+    }
+}
+
+/// What each RPE number means.
+struct EffortGuide: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(Effort.levels) { level in
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(Effort.text(level.rpe))
+                                .font(.title3.monospacedDigit().bold())
+                                .frame(width: 32)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(level.title).font(.headline)
+                                Text(level.detail).font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } footer: {
+                    Text("RPE counts how many more reps you could have done with good form. \(Effort.target)")
+                }
+            }
+            .navigationTitle("Effort (RPE)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

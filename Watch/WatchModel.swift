@@ -24,6 +24,7 @@ final class WatchModel: ObservableObject {
         let workout = ActiveWorkout(day: day, lastSets: context.lastSets)
         workout.onRestFinished = {
             WKInterfaceDevice.current().play(.notification)
+            Beep.shared.play()
         }
         active = workout
         Task {

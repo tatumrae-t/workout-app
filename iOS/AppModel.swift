@@ -35,6 +35,7 @@ final class AppModel: ObservableObject {
         let workout = ActiveWorkout(day: day, lastSets: lastSets)
         workout.onRestFinished = {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Beep.shared.play()
         }
         workout.onRestChanged = { end in
             RestNotification.schedule(at: end)
