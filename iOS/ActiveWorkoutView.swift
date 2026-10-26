@@ -317,7 +317,7 @@ struct SetEditTarget: Identifiable {
     let set: LoggedSet
     let usesWeight: Bool
 
-    var id: UUID { set.id }
+    var id: UUID { self.set.id }
 }
 
 /// An indented "Set 2   50 lb × 10 @8" row with a pencil.

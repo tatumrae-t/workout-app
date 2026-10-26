@@ -40,6 +40,7 @@ final class AppModel: ObservableObject {
         }
         workout.onRestChanged = { [weak workout] end in
             RestNotification.schedule(at: end)
+            Beep.shared.holdDuringRest(end != nil)
             if let workout {
                 RestActivityController.show(until: end, for: workout)
             }

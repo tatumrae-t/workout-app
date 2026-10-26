@@ -262,11 +262,12 @@ final class ActiveWorkout: ObservableObject, Identifiable {
             guard !Task.isCancelled, let self else { return }
             self.restEndsAt = nil
             self.restTask = nil
-            self.onRestChanged?(nil)
             // If the app was suspended past the end, it's too late to alert.
+            // The alert goes first so the iPhone's audio is still held.
             if Date().timeIntervalSince(end) < 3 {
                 self.onRestFinished?()
             }
+            self.onRestChanged?(nil)
         }
     }
 

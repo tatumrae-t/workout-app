@@ -7,6 +7,9 @@ final class Beep {
     static let shared = Beep()
 
     private var player: AVAudioPlayer?
+    /// Silence looping during rest so iOS keeps the app running while the
+    /// phone is locked, which lets the beep play on time.
+    private var keepAlive: AVAudioPlayer?
 
     func play() {
         let session = AVAudioSession.sharedInstance()
@@ -28,12 +31,51 @@ final class Beep {
                 try? await Task.sleep(nanoseconds: wait)
                 guard let self, self.player === player else { return }
                 self.player = nil
-                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                self.releaseSession()
             }
         } catch {
             // The haptic still fires, so a missing beep isn't worth surfacing.
         }
     }
+
+    /// Keeps the app awake in the background until rest ends. Needs the
+    /// "audio" background mode. Call with false once rest is over.
+    func holdDuringRest(_ hold: Bool) {
+        guard hold else {
+            keepAlive?.stop()
+            keepAlive = nil
+            if player == nil { releaseSession() }
+            return
+        }
+        guard keepAlive == nil else { return }
+        let session = AVAudioSession.sharedInstance()
+        do {
+            if player == nil {
+                // Mixing, so music keeps playing untouched during rest.
+                try session.setCategory(.playback, options: [.mixWithOthers])
+            }
+            try session.setActive(true)
+            let keepAlive = try AVAudioPlayer(data: Self.silence)
+            keepAlive.numberOfLoops = -1
+            keepAlive.play()
+            self.keepAlive = keepAlive
+        } catch {
+            // Without it the rest notification still goes off.
+        }
+    }
+
+    private func releaseSession() {
+        let session = AVAudioSession.sharedInstance()
+        if keepAlive == nil {
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        } else {
+            // Still resting: stop ducking but stay active.
+            try? session.setCategory(.playback, options: [.mixWithOthers])
+        }
+    }
+
+    /// One second of silence.
+    private static let silence = wav(Array(repeating: 0, count: 44_100))
 
     /// Three 0.12 s beeps at 1 kHz as a 16-bit mono WAV.
     private static let sound: Data = {
@@ -53,7 +95,12 @@ final class Beep {
             }
             samples.append(contentsOf: repeatElement(0, count: off))
         }
+        return wav(samples)
+    }()
 
+    /// 16-bit mono PCM at 44.1 kHz.
+    private static func wav(_ samples: [Int16]) -> Data {
+        let rate = 44_100
         var data = Data()
         func append<T: FixedWidthInteger>(_ value: T) {
             withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
@@ -73,5 +120,5 @@ final class Beep {
         append(UInt32(byteCount))
         samples.forEach { append($0) }
         return data
-    }()
+    }
 }
