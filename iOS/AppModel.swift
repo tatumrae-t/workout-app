@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UserNotifications
 
@@ -13,6 +14,8 @@ final class AppModel: ObservableObject {
 
     private let connectivity = PhoneConnectivity()
     private static let file = "workouts.json"
+    private static let activeFile = "active-workout.json"
+    private var savingActive: AnyCancellable?
 
     init() {
         workouts = (Storage.load([Workout].self, from: Self.file) ?? [])
@@ -24,6 +27,11 @@ final class AppModel: ObservableObject {
         connectivity.activate()
         pushToWatch()
         RestActivityController.endAll()
+        if let saved = Storage.load(ActiveWorkout.Snapshot.self, from: Self.activeFile) {
+            let workout = ActiveWorkout(snapshot: saved)
+            attach(workout)
+            workout.resumeSavedRest()
+        }
     }
 
     var nextDayID: String {
@@ -33,7 +41,12 @@ final class AppModel: ObservableObject {
     // MARK: Workouts in progress
 
     func start(_ day: PlanDay) {
-        let workout = ActiveWorkout(day: day, lastSets: lastSets)
+        attach(ActiveWorkout(day: day, lastSets: lastSets))
+        Task { await RestNotification.requestPermission() }
+    }
+
+    /// Wires up alerts and saving, so the workout survives the app closing.
+    private func attach(_ workout: ActiveWorkout) {
         workout.onRestFinished = {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             Beep.shared.play()
@@ -46,7 +59,20 @@ final class AppModel: ObservableObject {
             }
         }
         active = workout
-        Task { await RestNotification.requestPermission() }
+        Storage.save(workout.snapshot, to: Self.activeFile)
+        savingActive = workout.objectWillChange
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { [weak workout] _ in
+                MainActor.assumeIsolated {
+                    guard let workout else { return }
+                    Storage.save(workout.snapshot, to: Self.activeFile)
+                }
+            }
+    }
+
+    private func clearSavedActive() {
+        savingActive = nil
+        Storage.delete(Self.activeFile)
     }
 
     func finishActive() {
@@ -55,11 +81,13 @@ final class AppModel: ObservableObject {
         if workout.loggedSetCount > 0 {
             add(workout.makeWorkout(source: .phone))
         }
+        clearSavedActive()
         active = nil
     }
 
     func discardActive() {
         active?.stopRest()
+        clearSavedActive()
         active = nil
     }
 

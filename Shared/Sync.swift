@@ -45,6 +45,10 @@ enum Storage {
         return try? JSONDecoder().decode(type, from: data)
     }
 
+    static func delete(_ file: String) {
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+    }
+
     static func save<T: Encodable>(_ value: T, to file: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         try? data.write(to: directory.appendingPathComponent(file), options: .atomic)

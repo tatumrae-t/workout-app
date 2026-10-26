@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import WatchKit
 
@@ -11,6 +12,8 @@ final class WatchModel: ObservableObject {
     let health = HealthWorkoutManager()
     private let connectivity = WatchConnectivityManager()
     private static let file = "context.json"
+    private static let activeFile = "active-workout.json"
+    private var savingActive: AnyCancellable?
 
     init() {
         context = Storage.load(WatchContext.self, from: Self.file) ?? .initial
@@ -18,19 +21,47 @@ final class WatchModel: ObservableObject {
             self?.receive(context)
         }
         connectivity.activate()
+        if let saved = Storage.load(ActiveWorkout.Snapshot.self, from: Self.activeFile) {
+            let workout = ActiveWorkout(snapshot: saved)
+            attach(workout)
+            workout.resumeSavedRest()
+            // Pick the Health session back up so time and calories carry on.
+            Task {
+                await health.recover()
+                if workout.isPaused { health.pause() }
+            }
+        }
     }
 
     func start(_ day: PlanDay) {
-        let workout = ActiveWorkout(day: day, lastSets: context.lastSets)
+        attach(ActiveWorkout(day: day, lastSets: context.lastSets))
+        Task {
+            await health.requestAuthorization()
+            await health.start()
+        }
+    }
+
+    /// Wires up alerts and saving, so the workout survives the app closing.
+    private func attach(_ workout: ActiveWorkout) {
         workout.onRestFinished = {
             WKInterfaceDevice.current().play(.notification)
             Beep.shared.play()
         }
         active = workout
-        Task {
-            await health.requestAuthorization()
-            await health.start()
-        }
+        Storage.save(workout.snapshot, to: Self.activeFile)
+        savingActive = workout.objectWillChange
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { [weak workout] _ in
+                MainActor.assumeIsolated {
+                    guard let workout else { return }
+                    Storage.save(workout.snapshot, to: Self.activeFile)
+                }
+            }
+    }
+
+    private func clearSavedActive() {
+        savingActive = nil
+        Storage.delete(Self.activeFile)
     }
 
     func finish() async {
@@ -44,6 +75,7 @@ final class WatchModel: ObservableObject {
             Storage.save(context, to: Self.file)
             finished = result
         }
+        clearSavedActive()
         active = nil
         WKInterfaceDevice.current().play(.success)
     }
@@ -63,6 +95,7 @@ final class WatchModel: ObservableObject {
     func discard() {
         active?.stopRest()
         health.discard()
+        clearSavedActive()
         active = nil
     }
 

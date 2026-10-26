@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 /// One set to do, in the order you'll do it. Supersets alternate sets.
-struct SessionStep: Identifiable, Hashable {
+struct SessionStep: Identifiable, Hashable, Codable {
     let id: Int
     let exerciseID: String
     let setNumber: Int
@@ -76,6 +76,8 @@ final class ActiveWorkout: ObservableObject, Identifiable {
     private var restTask: Task<Void, Never>?
     /// Rest that was left when you paused, picked back up on resume.
     private var pausedRest: TimeInterval?
+    /// A rest end from a saved session, started once callbacks are attached.
+    private var savedRestEnd: Date?
 
     init(day: PlanDay, lastSets: [String: [LoggedSet]], startDate: Date = Date()) {
         self.day = day
@@ -290,6 +292,62 @@ final class ActiveWorkout: ObservableObject, Identifiable {
             scheduleRestEnd(at: Date().addingTimeInterval(rest))
         }
         pausedRest = nil
+    }
+
+    // MARK: Saving
+
+    /// Everything needed to pick a workout back up after the app is closed.
+    struct Snapshot: Codable {
+        var day: PlanDay
+        var lastSets: [String: [LoggedSet]]
+        var startDate: Date
+        var steps: [SessionStep]
+        var index: Int
+        var logged: [String: [LoggedSet]]
+        var stepSet: [Int: UUID]
+        var restEndsAt: Date?
+        var restDuration: Int
+        var pausedAt: Date?
+        var pausedTime: TimeInterval
+        var pausedRest: TimeInterval?
+        var weight: Double
+        var reps: Int
+        var rpe: Double?
+    }
+
+    var snapshot: Snapshot {
+        Snapshot(
+            day: day, lastSets: lastSets, startDate: startDate, steps: steps, index: index,
+            logged: logged, stepSet: stepSet, restEndsAt: restEndsAt, restDuration: restDuration,
+            pausedAt: pausedAt, pausedTime: pausedTime, pausedRest: pausedRest,
+            weight: weight, reps: reps, rpe: rpe
+        )
+    }
+
+    convenience init(snapshot saved: Snapshot) {
+        self.init(day: saved.day, lastSets: saved.lastSets, startDate: saved.startDate)
+        steps = saved.steps
+        index = saved.index
+        logged = saved.logged
+        stepSet = saved.stepSet
+        restDuration = saved.restDuration
+        pausedAt = saved.pausedAt
+        pausedTime = saved.pausedTime
+        pausedRest = saved.pausedRest
+        savedRestEnd = saved.restEndsAt
+        loadSuggestion()
+        weight = saved.weight
+        reps = saved.reps
+        rpe = saved.rpe
+    }
+
+    /// Restarts a saved rest timer if it's still running. One that ran out
+    /// while the app was closed is dropped rather than beeping late.
+    func resumeSavedRest() {
+        if let end = savedRestEnd, end.timeIntervalSinceNow >= 1 {
+            scheduleRestEnd(at: end)
+        }
+        savedRestEnd = nil
     }
 
     // MARK: Finishing

@@ -50,6 +50,31 @@ final class HealthWorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    /// Reattaches to a session that was running when the app quit, or starts
+    /// a new one if there's nothing to recover.
+    func recover() async {
+        guard session == nil, HKHealthStore.isHealthDataAvailable() else { return }
+        let recovered: HKWorkoutSession? = await withCheckedContinuation { continuation in
+            store.recoverActiveWorkoutSession { session, _ in
+                continuation.resume(returning: session)
+            }
+        }
+        guard let recovered else {
+            await start()
+            return
+        }
+        let builder = recovered.associatedWorkoutBuilder()
+        builder.dataSource = HKLiveWorkoutDataSource(
+            healthStore: store,
+            workoutConfiguration: recovered.workoutConfiguration
+        )
+        recovered.delegate = self
+        builder.delegate = self
+        session = recovered
+        self.builder = builder
+        isRunning = true
+    }
+
     /// Pausing stops Health from counting time and calories until you resume.
     func pause() {
         session?.pause()
