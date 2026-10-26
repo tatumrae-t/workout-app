@@ -60,9 +60,23 @@ struct WorkoutRow: View {
 }
 
 struct WorkoutDetailView: View {
-    let workout: Workout
+    @EnvironmentObject private var model: AppModel
+    let workoutID: UUID
+    @State private var editing: SetEditTarget?
+
+    init(workout: Workout) {
+        workoutID = workout.id
+    }
 
     var body: some View {
+        if let workout = model.workouts.first(where: { $0.id == workoutID }) {
+            details(workout)
+        } else {
+            ContentUnavailableView("Workout deleted", systemImage: "trash")
+        }
+    }
+
+    private func details(_ workout: Workout) -> some View {
         List {
             Section {
                 LabeledContent("Date", value: workout.startDate.formatted(date: .long, time: .shortened))
@@ -72,10 +86,23 @@ struct WorkoutDetailView: View {
             ForEach(workout.exercises) { exercise in
                 Section(exercise.name) {
                     ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { number, set in
-                        HStack {
-                            Text("Set \(number + 1)").foregroundStyle(.secondary)
-                            Spacer()
-                            Text(Format.set(set)).monospacedDigit()
+                        Button {
+                            editing = SetEditTarget(
+                                title: "\(exercise.name), set \(number + 1)",
+                                set: set,
+                                usesWeight: model.usesWeight(exercise.name)
+                            )
+                        } label: {
+                            HStack {
+                                Text("Set \(number + 1)").foregroundStyle(.secondary)
+                                Spacer()
+                                Text(Format.set(set)).monospacedDigit().foregroundStyle(.primary)
+                            }
+                        }
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                model.deleteSet(id: set.id, in: workout.id)
+                            }
                         }
                     }
                 }
@@ -83,5 +110,12 @@ struct WorkoutDetailView: View {
         }
         .navigationTitle(workout.name)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editing) { target in
+            SetEditor(title: target.title, set: target.set, usesWeight: target.usesWeight) { fixed in
+                model.updateSet(fixed, in: workout.id)
+            } onDelete: {
+                model.deleteSet(id: target.set.id, in: workout.id)
+            }
+        }
     }
 }

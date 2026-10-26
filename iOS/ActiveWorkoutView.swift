@@ -4,6 +4,7 @@ struct ActiveWorkoutView: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var workout: ActiveWorkout
     @State private var confirmingDiscard = false
+    @State private var editing: SetEditTarget?
 
     var body: some View {
         NavigationStack {
@@ -20,10 +21,15 @@ struct ActiveWorkoutView: View {
                     }
                 }
 
-                Section("Today") {
+                Section {
                     ForEach(workout.day.exercises) { exercise in
                         exerciseRow(exercise)
+                        loggedSetRows(exercise)
                     }
+                } header: {
+                    Text("Today")
+                } footer: {
+                    Text("Tap a logged set to fix it.")
                 }
             }
             .navigationTitle(workout.day.title)
@@ -42,6 +48,13 @@ struct ActiveWorkoutView: View {
                     } label: {
                         Label(workout.isPaused ? "Resume" : "Pause", systemImage: workout.isPaused ? "play.fill" : "pause.fill")
                     }
+                }
+            }
+            .sheet(item: $editing) { target in
+                SetEditor(title: target.title, set: target.set, usesWeight: target.usesWeight) { fixed in
+                    workout.updateSet(fixed)
+                } onDelete: {
+                    workout.deleteSet(id: target.set.id)
                 }
             }
             .confirmationDialog("Discard this workout?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
@@ -82,6 +95,19 @@ struct ActiveWorkoutView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical)
+    }
+
+    private func loggedSetRows(_ exercise: PlanExercise) -> some View {
+        ForEach(Array(workout.sets(for: exercise).enumerated()), id: \.element.id) { number, set in
+            Button {
+                editing = SetEditTarget(title: "\(exercise.displayName), set \(number + 1)", set: set, usesWeight: exercise.usesWeight)
+            } label: {
+                LoggedSetRow(number: number + 1, set: set)
+            }
+            .swipeActions {
+                Button("Delete", role: .destructive) { workout.deleteSet(id: set.id) }
+            }
+        }
     }
 
     private func exerciseRow(_ exercise: PlanExercise) -> some View {
@@ -283,5 +309,96 @@ struct EffortGuide: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+struct SetEditTarget: Identifiable {
+    let title: String
+    let set: LoggedSet
+    let usesWeight: Bool
+
+    var id: UUID { set.id }
+}
+
+/// An indented "Set 2   50 lb × 10 @8" row with a pencil.
+struct LoggedSetRow: View {
+    let number: Int
+    let set: LoggedSet
+
+    var body: some View {
+        HStack {
+            Text("Set \(number)").foregroundStyle(.secondary)
+            Spacer()
+            Text(Format.set(set)).monospacedDigit().foregroundStyle(.primary)
+            Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)
+        }
+        .font(.subheadline)
+        .padding(.leading, 32)
+    }
+}
+
+/// Fix a logged set's weight, reps or effort, or delete it.
+struct SetEditor: View {
+    let title: String
+    let usesWeight: Bool
+    let onSave: (LoggedSet) -> Void
+    let onDelete: () -> Void
+    @State private var draft: LoggedSet
+    @Environment(\.dismiss) private var dismiss
+
+    init(title: String, set: LoggedSet, usesWeight: Bool, onSave: @escaping (LoggedSet) -> Void, onDelete: @escaping () -> Void) {
+        self.title = title
+        self.usesWeight = usesWeight
+        self.onSave = onSave
+        self.onDelete = onDelete
+        _draft = State(initialValue: set)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if usesWeight {
+                    Section("Weight") {
+                        HStack {
+                            TextField("Weight", value: $draft.weight, format: .number)
+                                .keyboardType(.decimalPad)
+                                .font(.title3.monospacedDigit())
+                            Text("lb").foregroundStyle(.secondary)
+                            Stepper("Weight", value: $draft.weight, in: 0...500, step: 2.5)
+                                .labelsHidden()
+                        }
+                    }
+                }
+                Section("Reps") {
+                    Stepper(value: $draft.reps, in: 0...100) {
+                        Text("\(draft.reps) reps").font(.title3.monospacedDigit())
+                    }
+                }
+                Section {
+                    EffortPicker(rpe: $draft.rpe)
+                }
+                Section {
+                    Button("Delete set", role: .destructive) {
+                        onDelete()
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        draft.weight = max(0, draft.weight)
+                        onSave(draft)
+                        dismiss()
+                    }
+                    .bold()
+                }
+            }
+        }
     }
 }

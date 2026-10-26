@@ -170,6 +170,42 @@ final class ActiveWorkout: ObservableObject, Identifiable {
         }
     }
 
+    // MARK: Fixing logged sets
+
+    /// The set you logged most recently, for a quick fix.
+    var lastLogged: (exercise: PlanExercise, set: LoggedSet)? {
+        var latest: (exercise: PlanExercise, set: LoggedSet)?
+        for (key, sets) in logged {
+            guard let exercise = day.exercise(key), let set = sets.last else { continue }
+            if latest == nil || set.completedAt > latest!.set.completedAt {
+                latest = (exercise, set)
+            }
+        }
+        return latest
+    }
+
+    /// Replaces a logged set with a corrected copy (same id).
+    func updateSet(_ set: LoggedSet) {
+        for (key, sets) in logged {
+            guard let i = sets.firstIndex(where: { $0.id == set.id }) else { continue }
+            logged[key]?[i] = set
+            // The next set's prefill copies the last one, so keep it in step.
+            if key == currentExercise?.id && i == sets.count - 1 {
+                weight = set.weight
+                reps = set.reps
+            }
+            return
+        }
+    }
+
+    /// Removes a logged set. Its spot in the session counts as skipped.
+    func deleteSet(id: UUID) {
+        for key in logged.keys {
+            logged[key]?.removeAll { $0.id == id }
+        }
+        stepSet = stepSet.filter { $0.value != id }
+    }
+
     func adjustWeight(by delta: Double) {
         weight = max(0, weight + delta)
     }

@@ -192,6 +192,7 @@ struct ControlsView: View {
     @EnvironmentObject private var model: WatchModel
     @ObservedObject var workout: ActiveWorkout
     @State private var confirmingDiscard = false
+    @State private var editingLast = false
 
     var body: some View {
         ScrollView {
@@ -221,6 +222,14 @@ struct ControlsView: View {
                 .disabled(workout.index == 0)
 
                 Button {
+                    editingLast = true
+                } label: {
+                    Label("Edit last set", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(workout.lastLogged == nil)
+
+                Button {
                     workout.skipSet()
                 } label: {
                     Label("Skip set", systemImage: "forward")
@@ -242,6 +251,11 @@ struct ControlsView: View {
                     Label("Discard", systemImage: "xmark")
                         .frame(maxWidth: .infinity)
                 }
+            }
+        }
+        .sheet(isPresented: $editingLast) {
+            if let last = workout.lastLogged {
+                WatchSetEditor(workout: workout, exercise: last.exercise, set: last.set)
             }
         }
         .confirmationDialog("Discard this workout?", isPresented: $confirmingDiscard) {
@@ -340,6 +354,79 @@ struct PausedView: View {
                 Label("Resume", systemImage: "play.fill").frame(maxWidth: .infinity)
             }
             .tint(.green)
+        }
+    }
+}
+
+/// Fix the last set: crown for weight, +/- for reps, and effort.
+struct WatchSetEditor: View {
+    @ObservedObject var workout: ActiveWorkout
+    let exercise: PlanExercise
+    @State private var draft: LoggedSet
+    @FocusState private var weightFocused: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    init(workout: ActiveWorkout, exercise: PlanExercise, set: LoggedSet) {
+        self.workout = workout
+        self.exercise = exercise
+        _draft = State(initialValue: set)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                Text(exercise.displayName)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+
+                if exercise.usesWeight {
+                    Text("\(Format.weight(draft.weight)) lb")
+                        .font(.title2.monospacedDigit().bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(weightFocused ? Color.green : Color.gray.opacity(0.4), lineWidth: 1.5)
+                        )
+                        .focusable()
+                        .focused($weightFocused)
+                        .digitalCrownRotation(
+                            $draft.weight,
+                            from: 0,
+                            through: 500,
+                            by: 2.5,
+                            sensitivity: .low,
+                            isContinuous: false,
+                            isHapticFeedbackEnabled: true
+                        )
+                }
+
+                HStack {
+                    Button { draft.reps = max(0, draft.reps - 1) } label: { Image(systemName: "minus") }
+                    Text("\(draft.reps)")
+                        .font(.title2.monospacedDigit().bold())
+                        .frame(minWidth: 40)
+                    Button { draft.reps += 1 } label: { Image(systemName: "plus") }
+                }
+                .buttonStyle(.bordered)
+                Text("reps").font(.caption2).foregroundStyle(.secondary)
+
+                EffortButton(rpe: $draft.rpe)
+
+                Button {
+                    workout.updateSet(draft)
+                    dismiss()
+                } label: {
+                    Text("Save").bold().frame(maxWidth: .infinity)
+                }
+                .tint(.green)
+
+                Button("Delete set", role: .destructive) {
+                    workout.deleteSet(id: draft.id)
+                    dismiss()
+                }
+            }
         }
     }
 }

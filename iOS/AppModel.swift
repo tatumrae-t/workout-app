@@ -75,6 +75,31 @@ final class AppModel: ObservableObject {
         didChangeWorkouts()
     }
 
+    /// Saves a corrected set; "last time" and suggestions follow the fix.
+    func updateSet(_ set: LoggedSet, in workoutID: UUID) {
+        guard let w = workouts.firstIndex(where: { $0.id == workoutID }) else { return }
+        for e in workouts[w].exercises.indices {
+            if let s = workouts[w].exercises[e].sets.firstIndex(where: { $0.id == set.id }) {
+                workouts[w].exercises[e].sets[s] = set
+                didChangeWorkouts()
+                return
+            }
+        }
+    }
+
+    func deleteSet(id: UUID, in workoutID: UUID) {
+        guard let w = workouts.firstIndex(where: { $0.id == workoutID }) else { return }
+        for e in workouts[w].exercises.indices {
+            workouts[w].exercises[e].sets.removeAll { $0.id == id }
+        }
+        workouts[w].exercises.removeAll { $0.sets.isEmpty }
+        didChangeWorkouts()
+    }
+
+    func usesWeight(_ exerciseName: String) -> Bool {
+        plan.days.lazy.flatMap(\.exercises).first { $0.name == exerciseName }?.usesWeight ?? true
+    }
+
     /// Returns how many new workouts were added. Workouts already imported are skipped.
     func importStrong(from url: URL) throws -> (added: Int, skipped: Int) {
         let accessing = url.startAccessingSecurityScopedResource()
