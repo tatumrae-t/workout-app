@@ -143,6 +143,22 @@ final class AppModel: ObservableObject {
         return (fresh.count, imported.count - fresh.count)
     }
 
+    /// Adds workouts from a backup file. Ones already here are skipped.
+    func restoreBackup(from url: URL) throws -> (added: Int, skipped: Int) {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        let restored = try Backup.workouts(from: Data(contentsOf: url))
+        let existing = Set(workouts.map(\.id))
+        let fresh = restored.filter { !existing.contains($0.id) }
+        workouts.append(contentsOf: fresh)
+        didChangeWorkouts()
+        return (fresh.count, restored.count - fresh.count)
+    }
+
+    func backUpNow() {
+        AutoBackup.save(workouts)
+    }
+
     var strongWorkoutCount: Int {
         workouts.filter { $0.source == .strong }.count
     }
@@ -164,6 +180,7 @@ final class AppModel: ObservableObject {
     private func didChangeWorkouts() {
         workouts.sort { $0.startDate > $1.startDate }
         Storage.save(workouts, to: Self.file)
+        AutoBackup.save(workouts)
         refreshLastSets()
         pushToWatch()
     }
