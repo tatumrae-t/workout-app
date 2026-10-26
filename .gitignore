@@ -2,6 +2,7 @@
 *.xcodeproj
 Config/iOS-Info.plist
 Config/Watch-Info.plist
+Config/Widget-Info.plist
 Config/Watch.entitlements
 Config/Local.xcconfig
 .tools/

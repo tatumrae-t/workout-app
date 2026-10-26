@@ -27,6 +27,8 @@ targets:
         type: syncedFolder
       - path: iOS
         type: syncedFolder
+      - path: LiveActivity
+        type: syncedFolder
     info:
       path: Config/iOS-Info.plist
       properties:
@@ -35,13 +37,36 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.tatumrae-t.workout
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: WorkoutWatch
+      - target: WorkoutWidgets
     scheme: {}
+
+  # Rest timer Live Activity on the Lock Screen and in the Dynamic Island.
+  WorkoutWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widget
+        type: syncedFolder
+      - path: LiveActivity
+        type: syncedFolder
+    info:
+      path: Config/Widget-Info.plist
+      properties:
+        CFBundleDisplayName: Workouts
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.tatumrae-t.workout.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
 
   WorkoutWatch:
     type: application

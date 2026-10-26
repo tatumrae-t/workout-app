@@ -226,6 +226,7 @@ final class ActiveWorkout: ObservableObject, Identifiable {
             guard !Task.isCancelled, let self else { return }
             self.restEndsAt = nil
             self.restTask = nil
+            self.onRestChanged?(nil)
             // If the app was suspended past the end, it's too late to alert.
             if Date().timeIntervalSince(end) < 3 {
                 self.onRestFinished?()

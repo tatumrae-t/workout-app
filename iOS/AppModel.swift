@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
         }
         connectivity.activate()
         pushToWatch()
+        RestActivityController.endAll()
     }
 
     var nextDayID: String {
@@ -37,8 +38,11 @@ final class AppModel: ObservableObject {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             Beep.shared.play()
         }
-        workout.onRestChanged = { end in
+        workout.onRestChanged = { [weak workout] end in
             RestNotification.schedule(at: end)
+            if let workout {
+                RestActivityController.show(until: end, for: workout)
+            }
         }
         active = workout
         Task { await RestNotification.requestPermission() }
